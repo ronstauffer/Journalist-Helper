@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os, sys, subprocess, datetime, re
+import os, sys, subprocess, datetime, re, time
 from pathlib import Path
 import shutil
 
@@ -11,7 +11,7 @@ def notify(t, m, s=""):
 def clean_speakers(text):
     lines = text.split('\n')
     cleaned = []
-    speaker = 1  # 1 = primary speaker / interviewer
+    speaker = 1  # 1 = Interviewer, 2 = Interviewee
     
     for line in lines:
         orig = line.strip()
@@ -25,17 +25,16 @@ def clean_speakers(text):
         
         lower = line.lower()
         
-        # Question-heavy or command lines → Speaker 1
-        if ('?' in line or 
-            any(lower.startswith(w) for w in ['what', 'how', 'who', 'when', 'where', 'why', 'can', 'could', 'would', 'speak', 'hey siri', 'recite'])):
+        # Question/command lines → Speaker 1
+        if ('?' in line or any(lower.startswith(w) for w in ['what', 'how', 'who', 'when', 'where', 'why', 'can', 'could', 'would', 'speak', 'hey siri', 'recite'])):
             speaker_label = "**Speaker 1 (Interviewer)**: "
             speaker = 2
-        # Very short responses → Speaker 2
+        # Short answers → Speaker 2
         elif len(line.split()) <= 10 and len(line) < 60:
             speaker_label = "**Speaker 2**: "
         else:
             speaker_label = f"**Speaker {speaker}**: "
-            if len(line.split()) > 8:  # Longer turns toggle
+            if len(line.split()) > 8:
                 speaker = 3 - speaker
         
         cleaned.append(speaker_label + line)
@@ -50,7 +49,7 @@ def main(vol="/Volumes/TILEREC"):
     mp3s = list(record_dir.glob("*.MP3")) + list(record_dir.glob("*.mp3")) if record_dir.exists() else []
     
     if not mp3s:
-        notify("Journalist Helper", "No MP3 files found in RECORD folder")
+        notify("Journalist Helper", "No MP3 files found")
         print("No files found.")
         return 0
     
@@ -74,7 +73,7 @@ def main(vol="/Volumes/TILEREC"):
             print("Transcription error:", e)
             continue
         
-        # Locate transcript
+        # Find transcript
         txt_files = list(archive.glob(f"{local.stem}*.txt"))
         transcript_path = txt_files[0] if txt_files else local.with_suffix('.txt')
         
@@ -122,11 +121,13 @@ def main(vol="/Volumes/TILEREC"):
         if f.exists():
             f.unlink()
     
+    # Graceful eject
+    time.sleep(2)
     try:
-        subprocess.run(["diskutil", "eject", "TILEREC"], check=True)
+        subprocess.run(["diskutil", "eject", "TILEREC"], check=True, timeout=10)
         notify("Journalist Helper", "✅ All done & ejected!")
     except:
-        notify("Journalist Helper", "Done - eject manually")
+        notify("Journalist Helper", "Done - eject manually if needed")
     
     return 0
 
