@@ -1,122 +1,89 @@
-#/usr/bin/env python3
-"""
-Journalist Helper v0.2
-Enhanced with notifications, progress, confirmation, and auto-eject.
-"""
-
-import os
-import sys
-import subprocess
-import datetime
+#!/usr/bin/env python3
+import os, sys, subprocess, datetime
 from pathlib import Path
-import shutil
-import time
-import re
+import shutil, re, glob
 
-def notify(title, message, subtitle=""):
-    """Send macOS notification"""
-    script = f'display notification "{message}" with title "{title}" subtitle "{subtitle}"'
-    subprocess.run(["osascript", "-e", script])
+def notify(t, m, s=""):
+    try:
+        subprocess.run(["osascript", "-e", f'display notification "{m}" with title "{t}" subtitle "{s}" sound name "Glass"'])
+    except: pass
 
-def get_progress(current, total):
-    """Simple progress percentage"""
-    return int((current / total) * 100) if total > 0 else 0
-
-def main(volume_path="/Volumes/TileTech"):
-    archive_dir = Path.home() / "Recordings" / "TileTech" / "Processed"
-    archive_dir.mkdir(parents=True, exist_ok=True)
+def main(vol="/Volumes/TILEREC"):
+    # Changed save location to Downloads
+    archive = Path.home() / "Downloads"
+    archive.mkdir(parents=True, exist_ok=True)
     
-    notify("Journalist Helper", "Drive mounted. Checking for files...", "Starting processing")
+    record_dir = Path(vol) / "RECORD"
+    mp3s = list(record_dir.glob("*.MP3")) + list(record_dir.glob("*.mp3")) if record_dir.exists() else []
     
-    if not os.path.isdir(volume_path):
-        notify("Journalist Helper", "No TileTech volume found.", "Error")
-        print("No TileTech volume found.")
+    if not mp3s:
+        notify("Journalist Helper", "No MP3 files found")
+        print("No files found.")
         return 0
     
-    mp3_files = list(Path(volume_path).rglob("*.mp3"))
-    if not mp3_files:
-        notify("Journalist Helper", "No MP3 files found.", "Nothing to process")
-        print("No MP3 files found.")
-        return 0
+    notify("Journalist Helper", f"Found {len(mp3s)} files", "Saving to Downloads...")
     
-    notify("Journalist Helper", f"Found {len(mp3_files)} files. Starting processing...", f"Total: {len(mp3_files)}")
-    
-    for idx, mp3_path in enumerate(mp3_files, 1):
-        print(f"Processing {idx}/{len(mp3_files)}: {mp3_path.name}")
-        notify("Journalist Helper", f"Processing file {idx}/{len(mp3_files)}", mp3_path.name)
+    for i, f in enumerate(mp3s, 1):
+        notify("Journalist Helper", f"Processing {i}/{len(mp3s)}", f.name)
+        print(f"Processing: {f.name}")
         
-        # Copy to archive
-        local_mp3 = archive_dir / mp3_path.name
-        shutil.copy2(mp3_path, local_mp3)
-        notify("Journalist Helper", "Copied to archive", f"{idx}/{len(mp3_files)}")
+        local = archive / f.name
+        shutil.copy2(f, local)
         
-        # Transcribe
-        transcript_path = local_mp3.with_suffix('.txt')
-        model_path = str(Path.home() / "whisper-models" / "ggml-medium.bin")  # Adjust path
+        model = str(Path.home() / "whisper-models" / "ggml-base.en.bin")
         
-        notify("Journalist Helper", f"Transcribing {idx}/{len(mp3_files)}...", "This may take a minute")
         try:
-            result = subprocess.run([
-                "whisper-cli", "-m", model_path, "-f", str(local_mp3),
+            subprocess.run([
+                "whisper-cli", "-m", model, "-f", str(local),
                 "--output-txt", "--language", "en"
-            ], capture_output=True, text=True, check=True)
-            print(result.stdout)
+            ], check=True)
         except Exception as e:
-            notify("Journalist Helper", f"Transcription failed for file {idx}", str(e))
-            print(f"⚠️ Transcription failed: {e}")
+            print("Transcription error:", e)
             continue
         
-        # Timestamp and gist
-        mtime = datetime.datetime.fromtimestamp(local_mp3.stat().st_mtime)
+        # Find transcript
+        txt_files = list(archive.glob(f"{local.stem}*.txt"))
+        transcript_path = txt_files[0] if txt_files else local.with_suffix('.txt')
+        
+        mtime = datetime.datetime.fromtimestamp(local.stat().st_mtime)
         timestamp = mtime.strftime("%Y-%m-%d_%H%M")
         
-        with open(transcript_path, 'r', encoding='utf-8', errors='ignore') as f:
-            content = f.read(500)
-        gist_raw = re.sub(r'[^a-zA-Z0-9 -_]', '', content.splitlines()[0][:80]).strip().replace(' ', '_')[:50] or "Conversation"
-        gist = re.sub(r'_+', '_', gist_raw).strip('_')
+        try:
+            with open(transcript_path, encoding='utf-8', errors='ignore') as fh:
+                content = fh.read(600)
+            gist_raw = re.sub(r'[^a-zA-Z0-9 -_]', '', (content.splitlines()[0] if content else "")[:80]).strip().replace(' ', '_')[:45] or "Conversation"
+            gist = re.sub(r'_+', '_', gist_raw).strip('_')
+        except:
+            gist = "Conversation"
         
         new_base = f"{timestamp}_{gist}"
-        new_mp3 = archive_dir / f"{new_base}.mp3"
-        new_txt = archive_dir / f"{new_base}.txt"
+        new_mp3 = archive / f"{new_base}.mp3"
+        new_txt = archive / f"{new_base}.txt"
         
-        local_mp3.rename(new_mp3)
-        if transcript_path.exists():
+        local.rename(new_mp3)
+        if transcript_path.exists() and transcript_path != new_txt:
             transcript_path.rename(new_txt)
         
-        notify("Journalist Helper", f"File {idx}/{len(mp3_files)} ready", new_base)
+        notify("Journalist Helper", f"✅ Completed {i}/{len(mp3s)}", new_base[:50])
     
-    # Confirmation before delete
-    confirm_script = '''
-    set dialogResult to display dialog "All files processed and renamed. Confirm deletion from TileTech?" buttons {"No", "Yes"} default button "Yes"
-    return button returned of dialogResult
-    '''
     try:
-        confirm = subprocess.run(["osascript", "-e", confirm_script], capture_output=True, text=True).stdout.strip()
-        if confirm != "Yes":
-            notify("Journalist Helper", "Deletion cancelled by user.", "Files preserved on device")
+        result = subprocess.run(["osascript", "-e", 'display dialog "All done!\n\nDelete originals from TileTech?" buttons {"No", "Yes"} default button "Yes"'], capture_output=True, text=True)
+        if "Yes" not in result.stdout:
+            notify("Journalist Helper", "Deletion cancelled")
             return 0
-    except:
-        print("Confirmation failed, skipping delete.")
-        return 0
+    except: pass
     
-    # Delete from source
-    for mp3_path in mp3_files:
-        if mp3_path.exists():
-            mp3_path.unlink()
-    notify("Journalist Helper", "Files deleted from TileTech.", "Cleanup complete")
+    for f in mp3s:
+        if f.exists():
+            f.unlink()
     
-    # Auto-eject
     try:
-        volume_name = Path(volume_path).name
-        subprocess.run(["diskutil", "eject", volume_name], check=True)
-        notify("Journalist Helper", "TileTech ejected successfully.", "All done!")
-    except Exception as e:
-        notify("Journalist Helper", "Eject failed. Please eject manually.", str(e))
+        subprocess.run(["diskutil", "eject", "TILEREC"], check=True)
+        notify("Journalist Helper", "✅ All done & ejected!")
+    except:
+        notify("Journalist Helper", "Done - eject manually")
     
-    notify("Journalist Helper", "Processing complete!", f"{len(mp3_files)} files handled.")
-    print("🎉 All files processed and device ejected.")
     return 0
 
 if __name__ == "__main__":
-    vol = sys.argv[1] if len(sys.argv) > 1 else "/Volumes/TileTech"
-    sys.exit(main(vol))
+    sys.exit(main())
