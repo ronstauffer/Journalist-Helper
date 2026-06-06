@@ -1,26 +1,22 @@
-# Journalist Helper Setup
+# Journalist Helper Setup (v0.2)
 
 ## Prerequisites
-1. Install Homebrew if not installed: `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
+1. Install Homebrew if not already: `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
 2. `brew install whisper-cpp ffmpeg`
-3. Download Whisper model: `mkdir -p ~/whisper-models && whisper-cli --download ggml-medium.en.bin` (or similar; check whisper-cpp docs)
-4. Create directories: `mkdir -p ~/Recordings/TileTech/Processed`
+3. Download Whisper model: `mkdir -p ~/whisper-models && cd ~/whisper-models && whisper-cli --download ggml-medium.bin` (or use base/small for faster tests)
+4. Make script executable: `chmod +x process_tiletech.py`
 
-## Install the Script
-```bash
-cd ~
-git clone https://github.com/ronstauffer/Journalist-Helper.git
-cd Journalist-Helper
-chmod +x process_tiletech.py
-```
+## For Auto-Launch on Mount
+- Use macOS Folder Actions or launchd.
+- For quick test: Plug in TileTech and run `./process_tiletech.py`
 
-## Manual Test
-Plug in TileTech and run:
-```bash
-python3 process_tiletech.py /Volumes/TileTech
-```
+## Notifications & Confirmation
+- Uses macOS `osascript` for notifications and dialogs.
+- Progress via notifications.
 
-## Auto-launch (Folder Actions or launchd)
-See Automator section in full docs (to be expanded).
+Test thoroughly before relying on auto-delete/eject.
 
-Update volume name if your TileTech mounts differently.
+## Next Improvements
+- Full filesystem watcher
+- Ollama for better summaries
+- Better progress during long transcriptions
