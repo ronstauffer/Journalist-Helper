@@ -13,3 +13,7 @@ macOS automation for TileTech recorder MP3s: auto-process on mount, transcribe w
 - The underlying transcription engine (whisper.cpp + ffmpeg) can handle other formats, but the discovery, processing, and renaming logic is currently MP3-specific only.
 
 Clone: `git clone https://github.com/ronstauffer/journalist-helper.git`
+
+See [SETUP.md](SETUP.md) for full installation instructions, including how to set up automatic launch on device mount using the included launch agent.
+
+The `launchd/` folder contains the plist template and `scripts/install-launchd.sh` makes fresh-machine setup straightforward.
