@@ -4,7 +4,7 @@
 
 macOS automation for TileTech recorder MP3s: auto-process on mount, transcribe with local Whisper, rename intelligently, notify progress, confirm before cleanup, and eject.
 
-**v0.2** — Added notifications, progress alerts, user confirmation, auto-eject.
+**v0.3** — Added mount waiting + debug logging, skip-if-already-processed logic, per-run delete confirmation that lists exact files, and transcript version stamps.
 
 ## Limitations
 

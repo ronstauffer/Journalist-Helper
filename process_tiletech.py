@@ -1,7 +1,16 @@
 #!/usr/bin/env python3
+"""
+Journalist Helper
+Local automation for processing audio from a TileTech recorder.
+"""
+
 import os, sys, subprocess, datetime, re, time
 from pathlib import Path
 import shutil
+
+__version__ = "0.3"
+
+__version__ = "0.3"
 
 def notify(t, m, s=""):
     try:
@@ -218,6 +227,13 @@ def main(vol="/Volumes/TILEREC"):
             with open(transcript_path, encoding='utf-8', errors='ignore') as fh:
                 content = fh.read()
             improved = clean_speakers(content)
+
+            # Add version signature so future-you (or anyone) can tell which
+            # version of Journalist Helper produced this transcript.
+            stamp_date = datetime.datetime.now().strftime("%Y-%m-%d")
+            signature = f"\n\n---\nCreated by Journalist Helper v{__version__} on {stamp_date}"
+            improved += signature
+
             with open(transcript_path, 'w', encoding='utf-8') as fh:
                 fh.write(improved)
         except Exception as e:
